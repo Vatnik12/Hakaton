@@ -98,6 +98,49 @@ POST /api/v1/chats/{roomId}/messages
 
 Форма арендодателя на сайте уже сохраняет новое объявление через Spring Boot API в PostgreSQL.
 
+
+## Быстрый деплой на новый сервер `31.77.241.39`
+
+Ниже команды именно для Windows CMD. Первая команда настраивает удобный вход `ssh gnezdo` на вашем компьютере, вторая запускается уже на сервере и поднимает сайт.
+
+### 1. На своём компьютере в Windows CMD
+
+```bat
+if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh"
+if not exist "%USERPROFILE%\.ssh\gnezdo_admin" ssh-keygen -t ed25519 -N "" -C "gnezdo-admin" -f "%USERPROFILE%\.ssh\gnezdo_admin"
+(
+  echo Host gnezdo
+  echo   HostName 31.77.241.39
+  echo   User root
+  echo   IdentityFile %USERPROFILE%\.ssh\gnezdo_admin
+  echo   IdentitiesOnly yes
+) >> "%USERPROFILE%\.ssh\config"
+ssh root@31.77.241.39 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" < "%USERPROFILE%\.ssh\gnezdo_admin.pub"
+ssh gnezdo
+```
+
+Во время команды `ssh root@31.77.241.39 ...` Windows попросит пароль от сервера, если ключ ещё не добавлен. Если провайдер отключил вход по паролю, добавьте содержимое файла `%USERPROFILE%\.ssh\gnezdo_admin.pub` в `/root/.ssh/authorized_keys` через панель провайдера, затем выполните `ssh gnezdo`.
+
+### 2. На сервере после входа по `ssh gnezdo`
+
+```bash
+set -e
+apt-get update && apt-get install -y git ca-certificates curl
+rm -rf /tmp/gnezdo-bootstrap
+git clone https://github.com/Vatnik12/Hakaton.git /tmp/gnezdo-bootstrap
+bash /tmp/gnezdo-bootstrap/deploy/setup-server.sh
+```
+
+После завершения сайт будет доступен по адресу `http://31.77.241.39`, а проверка API — `http://31.77.241.39/api/v1/health`. Скрипт в конце выведет значения для GitHub Secrets:
+
+```text
+SERVER_HOST=31.77.241.39
+SERVER_USER=deploy
+SSH_PRIVATE_KEY=-----BEGIN OPENSSH PRIVATE KEY----- ...
+```
+
+Добавьте эти три секрета в GitHub: `Settings → Secrets and variables → Actions → New repository secret`. Это и есть deploy key для автодеплоя: workflow будет заходить на сервер пользователем `deploy` и запускать `/usr/local/bin/deploy-gnezdo`.
+
 ## Мгновенный запуск на Ubuntu-сервере
 
 ```bash
