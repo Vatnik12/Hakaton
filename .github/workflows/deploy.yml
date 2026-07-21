@@ -43,4 +43,4 @@ jobs:
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-        run: ssh -i ~/.ssh/id_ed25519 "$SERVER_USER@$SERVER_HOST" /usr/local/bin/deploy-svoi
+        run: ssh -i ~/.ssh/id_ed25519 "$SERVER_USER@$SERVER_HOST" /usr/local/bin/deploy-gnezdo
