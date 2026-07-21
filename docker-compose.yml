@@ -1,0 +1,9 @@
+services:
+  svoi-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: svoi-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
