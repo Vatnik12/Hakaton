@@ -1,0 +1,27 @@
+server:
+  port: 8080
+  shutdown: graceful
+spring:
+  application:
+    name: gnezdo-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/gnezdo}
+    username: ${SPRING_DATASOURCE_USERNAME:gnezdo}
+    password: ${SPRING_DATASOURCE_PASSWORD:gnezdo}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  flyway:
+    enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

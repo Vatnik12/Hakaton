@@ -1,9 +1,53 @@
 services:
-  svoi-web:
+  gnezdo-db:
+    image: postgres:17-alpine
+    container_name: gnezdo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gnezdo}
+      POSTGRES_USER: ${POSTGRES_USER:-gnezdo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gnezdo_change_me}
+    volumes:
+      - gnezdo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gnezdo} -d ${POSTGRES_DB:-gnezdo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  gnezdo-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gnezdo-api
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://gnezdo-db:5432/${POSTGRES_DB:-gnezdo}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-gnezdo}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-gnezdo_change_me}
+    depends_on:
+      gnezdo-db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  gnezdo-web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: svoi-web
+    container_name: gnezdo-web
     restart: unless-stopped
     ports:
       - "80:80"
+    depends_on:
+      gnezdo-api:
+        condition: service_healthy
+
+volumes:
+  gnezdo-postgres:

@@ -11,7 +11,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 apt-get update
-apt-get install -y ca-certificates curl git openssh-server
+apt-get install -y ca-certificates curl git openssh-server openssl
 if ! command -v docker >/dev/null 2>&1; then curl -fsSL https://get.docker.com | sh; fi
 systemctl enable --now docker
 systemctl enable --now ssh
@@ -28,7 +28,14 @@ else
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" reset --hard origin/main
 fi
 
-cat > /usr/local/bin/deploy-svoi <<'SCRIPT'
+if [ ! -f "$APP_DIR/.env" ]; then
+  cp "$APP_DIR/.env.example" "$APP_DIR/.env"
+  sed -i "s/replace_with_a_strong_password/$(openssl rand -hex 24)/" "$APP_DIR/.env"
+  chown "$DEPLOY_USER":"$DEPLOY_USER" "$APP_DIR/.env"
+  chmod 600 "$APP_DIR/.env"
+fi
+
+cat > /usr/local/bin/deploy-gnezdo <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 cd /opt/svoi
@@ -37,15 +44,16 @@ git reset --hard origin/main
 docker compose up -d --build --remove-orphans
 docker image prune -f >/dev/null 2>&1 || true
 SCRIPT
-chmod 755 /usr/local/bin/deploy-svoi
-sudo -u "$DEPLOY_USER" /usr/local/bin/deploy-svoi
+chmod 755 /usr/local/bin/deploy-gnezdo
+ln -sf /usr/local/bin/deploy-gnezdo /usr/local/bin/deploy-svoi
+sudo -u "$DEPLOY_USER" /usr/local/bin/deploy-gnezdo
 
 SSH_DIR="/home/$DEPLOY_USER/.ssh"
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 chown "$DEPLOY_USER":"$DEPLOY_USER" "$SSH_DIR"
-TMP_KEY="$(mktemp -u /tmp/svoi-actions-key.XXXXXX)"
-ssh-keygen -t ed25519 -N "" -C "github-actions-svoi" -f "$TMP_KEY" >/dev/null
+TMP_KEY="$(mktemp -u /tmp/gnezdo-actions-key.XXXXXX)"
+ssh-keygen -t ed25519 -N "" -C "github-actions-gnezdo" -f "$TMP_KEY" >/dev/null
 cat "$TMP_KEY.pub" >> "$SSH_DIR/authorized_keys"
 sort -u "$SSH_DIR/authorized_keys" -o "$SSH_DIR/authorized_keys"
 chmod 600 "$SSH_DIR/authorized_keys"
@@ -54,7 +62,8 @@ chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$SSH_DIR"
 SERVER_IP="$(curl -4 -fsS https://api.ipify.org || hostname -I | awk '{print $1}')"
 echo
 echo "============================================================"
-echo "Сайт запущен: http://$SERVER_IP"
+echo "Гнездо запущено: http://$SERVER_IP"
+echo "API health: http://$SERVER_IP/api/v1/health"
 echo "SERVER_HOST=$SERVER_IP"
 echo "SERVER_USER=$DEPLOY_USER"
 echo "SSH_PRIVATE_KEY:"
