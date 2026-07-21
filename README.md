@@ -101,26 +101,25 @@ POST /api/v1/chats/{roomId}/messages
 
 ## Быстрый деплой на новый сервер `31.77.241.39`
 
-Ниже две команды: первая настраивает удобный вход `ssh gnezdo` на вашем компьютере, вторая запускается уже на сервере и поднимает сайт.
+Ниже команды именно для Windows CMD. Первая команда настраивает удобный вход `ssh gnezdo` на вашем компьютере, вторая запускается уже на сервере и поднимает сайт.
 
-### 1. На своём компьютере
+### 1. На своём компьютере в Windows CMD
 
-```bash
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-ssh-keygen -t ed25519 -N "" -C "gnezdo-admin" -f ~/.ssh/gnezdo_admin || true
-cat >> ~/.ssh/config <<'EOF'
-Host gnezdo
-  HostName 31.77.241.39
-  User root
-  IdentityFile ~/.ssh/gnezdo_admin
-  IdentitiesOnly yes
-EOF
-chmod 600 ~/.ssh/config
-ssh-copy-id -i ~/.ssh/gnezdo_admin.pub root@31.77.241.39
+```bat
+if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh"
+if not exist "%USERPROFILE%\.ssh\gnezdo_admin" ssh-keygen -t ed25519 -N "" -C "gnezdo-admin" -f "%USERPROFILE%\.ssh\gnezdo_admin"
+(
+  echo Host gnezdo
+  echo   HostName 31.77.241.39
+  echo   User root
+  echo   IdentityFile %USERPROFILE%\.ssh\gnezdo_admin
+  echo   IdentitiesOnly yes
+) >> "%USERPROFILE%\.ssh\config"
+ssh root@31.77.241.39 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" < "%USERPROFILE%\.ssh\gnezdo_admin.pub"
 ssh gnezdo
 ```
 
-Если `ssh-copy-id` недоступен, добавьте содержимое `~/.ssh/gnezdo_admin.pub` в файл `/root/.ssh/authorized_keys` через панель провайдера или временный парольный вход.
+Во время команды `ssh root@31.77.241.39 ...` Windows попросит пароль от сервера, если ключ ещё не добавлен. Если провайдер отключил вход по паролю, добавьте содержимое файла `%USERPROFILE%\.ssh\gnezdo_admin.pub` в `/root/.ssh/authorized_keys` через панель провайдера, затем выполните `ssh gnezdo`.
 
 ### 2. На сервере после входа по `ssh gnezdo`
 
