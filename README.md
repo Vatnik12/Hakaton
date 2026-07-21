@@ -98,6 +98,50 @@ POST /api/v1/chats/{roomId}/messages
 
 Форма арендодателя на сайте уже сохраняет новое объявление через Spring Boot API в PostgreSQL.
 
+
+## Быстрый деплой на новый сервер `31.77.241.39`
+
+Ниже две команды: первая настраивает удобный вход `ssh gnezdo` на вашем компьютере, вторая запускается уже на сервере и поднимает сайт.
+
+### 1. На своём компьютере
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -N "" -C "gnezdo-admin" -f ~/.ssh/gnezdo_admin || true
+cat >> ~/.ssh/config <<'EOF'
+Host gnezdo
+  HostName 31.77.241.39
+  User root
+  IdentityFile ~/.ssh/gnezdo_admin
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+ssh-copy-id -i ~/.ssh/gnezdo_admin.pub root@31.77.241.39
+ssh gnezdo
+```
+
+Если `ssh-copy-id` недоступен, добавьте содержимое `~/.ssh/gnezdo_admin.pub` в файл `/root/.ssh/authorized_keys` через панель провайдера или временный парольный вход.
+
+### 2. На сервере после входа по `ssh gnezdo`
+
+```bash
+set -e
+apt-get update && apt-get install -y git ca-certificates curl
+rm -rf /tmp/gnezdo-bootstrap
+git clone https://github.com/Vatnik12/Hakaton.git /tmp/gnezdo-bootstrap
+bash /tmp/gnezdo-bootstrap/deploy/setup-server.sh
+```
+
+После завершения сайт будет доступен по адресу `http://31.77.241.39`, а проверка API — `http://31.77.241.39/api/v1/health`. Скрипт в конце выведет значения для GitHub Secrets:
+
+```text
+SERVER_HOST=31.77.241.39
+SERVER_USER=deploy
+SSH_PRIVATE_KEY=-----BEGIN OPENSSH PRIVATE KEY----- ...
+```
+
+Добавьте эти три секрета в GitHub: `Settings → Secrets and variables → Actions → New repository secret`. Это и есть deploy key для автодеплоя: workflow будет заходить на сервер пользователем `deploy` и запускать `/usr/local/bin/deploy-gnezdo`.
+
 ## Мгновенный запуск на Ubuntu-сервере
 
 ```bash
