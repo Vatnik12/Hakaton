@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Root,
     [int]$Port = 8080,
-    [string]$PidFile = "$env:TEMP\gnezdo-local-server.pid"
+    [string]$PidFile = "$env:TEMP\gnezdo-local-server.pid",
+    [switch]$OpenBrowser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,13 +30,15 @@ function Write-Response {
         [byte[]]$Body,
         [string]$ContentType,
         [int]$StatusCode = 200,
-        [string]$StatusText = 'OK'
+        [string]$StatusText = 'OK',
+        [bool]$SendBody = $true
     )
 
+    $length = if ($SendBody) { $Body.Length } else { 0 }
     $headers = @(
         "HTTP/1.1 $StatusCode $StatusText"
         "Content-Type: $ContentType"
-        "Content-Length: $($Body.Length)"
+        "Content-Length: $length"
         'Cache-Control: no-store, no-cache, must-revalidate, max-age=0'
         'Pragma: no-cache'
         'Expires: 0'
@@ -46,7 +49,7 @@ function Write-Response {
 
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    if ($Body.Length -gt 0) {
+    if ($SendBody -and $Body.Length -gt 0) {
         $Stream.Write($Body, 0, $Body.Length)
     }
     $Stream.Flush()
@@ -57,22 +60,40 @@ $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopba
 try {
     $listener.Start()
 } catch {
-    Write-Host "Не удалось занять порт $Port." -ForegroundColor Red
+    Write-Host "[ОШИБКА] Не удалось занять порт $Port." -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor DarkRed
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
 Write-Host ''
-Write-Host 'Гнездо запущено локально' -ForegroundColor Green
-Write-Host "Адрес: http://localhost:$Port" -ForegroundColor Cyan
-Write-Host "Папка: $Root" -ForegroundColor Gray
-Write-Host 'Для остановки закройте это окно или нажмите Ctrl+C.' -ForegroundColor Yellow
+Write-Host '============================================================' -ForegroundColor DarkGreen
+Write-Host '                 ГНЕЗДО ЗАПУЩЕНО ЛОКАЛЬНО' -ForegroundColor Green
+Write-Host '============================================================' -ForegroundColor DarkGreen
+Write-Host "Адрес:  http://localhost:$Port" -ForegroundColor Cyan
+Write-Host "Папка:  $Root" -ForegroundColor Gray
+Write-Host "PID:    $PID" -ForegroundColor DarkGray
 Write-Host ''
+Write-Host 'Ниже отображается журнал запросов браузера.' -ForegroundColor Yellow
+Write-Host 'Для остановки нажмите Ctrl+C или закройте окно.' -ForegroundColor Yellow
+Write-Host ''
+
+if ($OpenBrowser) {
+    Start-Sleep -Milliseconds 350
+    try {
+        Start-Process "http://localhost:$Port/?dev=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Браузер открыт." -ForegroundColor Green
+    } catch {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Не удалось открыть браузер автоматически." -ForegroundColor Yellow
+        Write-Host "Откройте вручную: http://localhost:$Port" -ForegroundColor Cyan
+    }
+}
 
 try {
     while ($true) {
         $client = $listener.AcceptTcpClient()
+        $reader = $null
+        $stream = $null
         try {
             $stream = $client.GetStream()
             $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
@@ -93,10 +114,13 @@ try {
             if ($parts.Length -lt 2 -or ($parts[0] -ne 'GET' -and $parts[0] -ne 'HEAD')) {
                 $body = [System.Text.Encoding]::UTF8.GetBytes('Method not allowed')
                 Write-Response $stream $body 'text/plain; charset=utf-8' 405 'Method Not Allowed'
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 405 $requestLine" -ForegroundColor Yellow
                 continue
             }
 
-            $rawPath = $parts[1].Split('?')[0]
+            $method = $parts[0]
+            $urlPath = $parts[1]
+            $rawPath = $urlPath.Split('?')[0]
             $rawPath = [System.Uri]::UnescapeDataString($rawPath)
             if ([string]::IsNullOrWhiteSpace($rawPath) -or $rawPath -eq '/') {
                 $rawPath = '/index.html'
@@ -108,6 +132,7 @@ try {
             if (-not $candidate.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
                 $body = [System.Text.Encoding]::UTF8.GetBytes('Forbidden')
                 Write-Response $stream $body 'text/plain; charset=utf-8' 403 'Forbidden'
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 403 $method $urlPath" -ForegroundColor Red
                 continue
             }
 
@@ -121,13 +146,15 @@ try {
 
             $extension = [System.IO.Path]::GetExtension($candidate).ToLowerInvariant()
             $contentType = if ($mime.ContainsKey($extension)) { $mime[$extension] } else { 'application/octet-stream' }
-            $body = if ($parts[0] -eq 'HEAD') { [byte[]]::new(0) } else { [System.IO.File]::ReadAllBytes($candidate) }
-            Write-Response $stream $body $contentType 200 'OK'
+            $body = [System.IO.File]::ReadAllBytes($candidate)
+            Write-Response $stream $body $contentType 200 'OK' ($method -ne 'HEAD')
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 200 $method $urlPath" -ForegroundColor DarkGray
         } catch {
             try {
                 $body = [System.Text.Encoding]::UTF8.GetBytes("Local server error: $($_.Exception.Message)")
-                Write-Response $stream $body 'text/plain; charset=utf-8' 500 'Internal Server Error'
+                if ($stream) { Write-Response $stream $body 'text/plain; charset=utf-8' 500 'Internal Server Error' }
             } catch {}
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 500 $($_.Exception.Message)" -ForegroundColor Red
         } finally {
             if ($reader) { $reader.Dispose() }
             if ($stream) { $stream.Dispose() }
@@ -137,4 +164,6 @@ try {
 } finally {
     $listener.Stop()
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-Host ''
+    Write-Host 'Локальный сервер остановлен.' -ForegroundColor Yellow
 }
