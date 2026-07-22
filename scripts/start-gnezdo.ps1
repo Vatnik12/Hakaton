@@ -33,12 +33,27 @@ function Invoke-Git {
         throw "Git failed with code ${code}: git $($Arguments -join ' ')"
     }
 
-    return $code
+    if ($AllowFailure) {
+        return $code
+    }
 }
 
 function Test-CommandExists {
     param([string]$Name)
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Ensure-GitOrigin {
+    param([string]$Path)
+
+    $currentOrigin = & git -C $Path remote get-url origin 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Invoke-Git @('-C', $Path, 'remote', 'set-url', 'origin', $repoUrl)
+        Write-Info 'Existing origin remote was refreshed.'
+    } else {
+        Invoke-Git @('-C', $Path, 'remote', 'add', 'origin', $repoUrl)
+        Write-Info 'Origin remote was added.'
+    }
 }
 
 function Sync-WithGit {
@@ -50,29 +65,35 @@ function Sync-WithGit {
 
     if (-not (Test-Path (Join-Path $Path '.git'))) {
         Write-Info 'Folder is not a Git repository yet.'
-        Write-Info 'Connecting this exact folder to GitHub...'
+        Write-Info 'Initializing Git in this exact folder...'
+        Invoke-Git @('-C', $Path, 'init')
+    } else {
+        Write-Info 'Git metadata found in the project folder.'
+    }
 
-        Invoke-Git @('-C', $Path, 'init') | Out-Null
-        Invoke-Git @('-C', $Path, 'remote', 'remove', 'origin') -AllowFailure | Out-Null
-        Invoke-Git @('-C', $Path, 'remote', 'add', 'origin', $repoUrl) | Out-Null
-        Invoke-Git @('-C', $Path, 'fetch', '--depth', '1', '--progress', 'origin', 'main')
+    Ensure-GitOrigin -Path $Path
+
+    Write-Info 'Downloading the latest main branch metadata...'
+    Invoke-Git @('-C', $Path, 'fetch', '--depth', '1', '--prune', '--progress', 'origin', 'main')
+
+    $remoteSha = (& git -C $Path rev-parse FETCH_HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteSha)) {
+        throw 'Could not read the downloaded GitHub commit.'
+    }
+
+    $localValue = & git -C $Path rev-parse --verify HEAD 2>$null
+    $hasLocalCommit = $LASTEXITCODE -eq 0
+    $localSha = if ($hasLocalCommit) { $localValue.Trim() } else { '' }
+
+    if (-not $hasLocalCommit) {
+        Write-Info 'The partial repository has no local commit yet.'
+        Write-Host '      Installing the downloaded main branch...' -ForegroundColor Yellow
         Invoke-Git @('-C', $Path, 'reset', '--hard', 'FETCH_HEAD')
         Invoke-Git @('-C', $Path, 'branch', '-M', 'main')
         Invoke-Git @('-C', $Path, 'clean', '-fd', '-e', '.env')
-
-        Write-Info 'Folder is now connected to GitHub and fully updated.'
+        Write-Host '      Project folder is now fully connected and updated.' -ForegroundColor Green
         return
     }
-
-    Write-Info 'Git repository found. Checking origin/main...'
-    Invoke-Git @('-C', $Path, 'remote', 'set-url', 'origin', $repoUrl)
-    Invoke-Git @('-C', $Path, 'fetch', '--prune', '--progress', 'origin', 'main')
-
-    $localSha = (& git -C $Path rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Could not read local commit.' }
-
-    $remoteSha = (& git -C $Path rev-parse origin/main).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Could not read origin/main commit.' }
 
     Write-Info "Local version:  $($localSha.Substring(0, 8))"
     Write-Info "GitHub version: $($remoteSha.Substring(0, 8))"
@@ -83,7 +104,8 @@ function Sync-WithGit {
     }
 
     Write-Host '      Update found. Replacing project files...' -ForegroundColor Yellow
-    Invoke-Git @('-C', $Path, 'reset', '--hard', 'origin/main')
+    Invoke-Git @('-C', $Path, 'reset', '--hard', 'FETCH_HEAD')
+    Invoke-Git @('-C', $Path, 'branch', '-M', 'main')
     Invoke-Git @('-C', $Path, 'clean', '-fd', '-e', '.env')
     Write-Host '      Update installed successfully.' -ForegroundColor Green
 }
