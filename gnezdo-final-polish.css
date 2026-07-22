@@ -1,0 +1,18 @@
+/* Final Gnezdo visual refinement */
+:root{--g-bg:#f8f3e8;--g-dark:#102a24;--g-green:#214d3e;--g-gold:#d5ad6d}
+body{font-family:'Manrope','Inter',Arial,sans-serif!important;background:var(--g-bg)!important}
+.brand-name{font-family:'Cormorant Garamond','Playfair Display',Georgia,serif!important;font-weight:700!important;letter-spacing:-.03em!important}
+.brand-logo{animation:nestBreath 5s ease-in-out infinite;transform-origin:center;}
+@keyframes nestBreath{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.04)}}
+.splash-center .brand-logo{animation:nestReveal 1.4s cubic-bezier(.2,.8,.2,1) both}
+@keyframes nestReveal{from{opacity:0;transform:scale(.7) rotate(-8deg)}to{opacity:1;transform:none}}
+.splash-house{animation:houseGlow 2s ease forwards}
+@keyframes houseGlow{0%{filter:brightness(.8)}60%{filter:brightness(1)}100%{filter:drop-shadow(0 0 35px rgba(213,173,109,.5))}}
+.ready-bar{z-index:3;box-shadow:0 12px 30px rgba(30,60,45,.12)!important}
+.person-card,.apartment-card{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.person-card:hover,.apartment-card:hover{transform:translateY(-8px);box-shadow:0 30px 70px rgba(25,55,46,.16)}
+.page-enter{animation:pageEnter .45s ease both}
+@keyframes pageEnter{from{opacity:0;transform:translateY(14px);filter:blur(5px)}to{opacity:1;transform:none;filter:none}}
+.chat-list-item{transition:.25s!important}
+.chat-list-item.active{border-color:var(--g-gold)!important;box-shadow:0 10px 30px rgba(213,173,109,.18)}
+@media(max-width:800px){.brand-logo{width:48px;height:48px}.ready-bar{position:sticky;bottom:8px;flex-direction:column;gap:12px}.chat-layout{padding:12px!important}}
