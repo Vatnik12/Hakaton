@@ -168,7 +168,10 @@ function Test-DockerReady {
         return $false
     }
 
-    & docker info --format '{{.ServerVersion}}' *> $null
+    # Windows PowerShell turns Docker's stderr into a terminating
+    # NativeCommandError when $ErrorActionPreference is Stop. Let cmd.exe
+    # absorb both streams so a stopped Docker Desktop is a normal false result.
+    & cmd.exe /d /c 'docker info >nul 2>&1'
     return $LASTEXITCODE -eq 0
 }
 
