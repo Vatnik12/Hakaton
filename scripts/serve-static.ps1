@@ -23,9 +23,36 @@ $mime = @{
     '.woff2'= 'font/woff2'
 }
 
-$listener = [System.Net.HttpListener]::new()
-$listener.Prefixes.Add("http://127.0.0.1:$Port/")
-$listener.Prefixes.Add("http://localhost:$Port/")
+function Write-Response {
+    param(
+        [System.Net.Sockets.NetworkStream]$Stream,
+        [byte[]]$Body,
+        [string]$ContentType,
+        [int]$StatusCode = 200,
+        [string]$StatusText = 'OK'
+    )
+
+    $headers = @(
+        "HTTP/1.1 $StatusCode $StatusText"
+        "Content-Type: $ContentType"
+        "Content-Length: $($Body.Length)"
+        'Cache-Control: no-store, no-cache, must-revalidate, max-age=0'
+        'Pragma: no-cache'
+        'Expires: 0'
+        'Connection: close'
+        ''
+        ''
+    ) -join "`r`n"
+
+    $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
+    $Stream.Write($headerBytes, 0, $headerBytes.Length)
+    if ($Body.Length -gt 0) {
+        $Stream.Write($Body, 0, $Body.Length)
+    }
+    $Stream.Flush()
+}
+
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
 
 try {
     $listener.Start()
@@ -36,31 +63,41 @@ try {
     exit 1
 }
 
-Write-Host ""
-Write-Host "Гнездо запущено локально" -ForegroundColor Green
+Write-Host ''
+Write-Host 'Гнездо запущено локально' -ForegroundColor Green
 Write-Host "Адрес: http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "Папка: $Root" -ForegroundColor Gray
-Write-Host "Для остановки закройте это окно или нажмите Ctrl+C." -ForegroundColor Yellow
-Write-Host ""
-
-function Send-Bytes {
-    param($Context, [byte[]]$Bytes, [string]$ContentType, [int]$StatusCode = 200)
-    $response = $Context.Response
-    $response.StatusCode = $StatusCode
-    $response.ContentType = $ContentType
-    $response.ContentLength64 = $Bytes.Length
-    $response.Headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    $response.Headers['Pragma'] = 'no-cache'
-    $response.Headers['Expires'] = '0'
-    $response.OutputStream.Write($Bytes, 0, $Bytes.Length)
-    $response.OutputStream.Close()
-}
+Write-Host 'Для остановки закройте это окно или нажмите Ctrl+C.' -ForegroundColor Yellow
+Write-Host ''
 
 try {
-    while ($listener.IsListening) {
-        $context = $listener.GetContext()
+    while ($true) {
+        $client = $listener.AcceptTcpClient()
         try {
-            $rawPath = [System.Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
+            $stream = $client.GetStream()
+            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
+            $requestLine = $reader.ReadLine()
+
+            if ([string]::IsNullOrWhiteSpace($requestLine)) {
+                $body = [System.Text.Encoding]::UTF8.GetBytes('Bad request')
+                Write-Response $stream $body 'text/plain; charset=utf-8' 400 'Bad Request'
+                continue
+            }
+
+            while ($true) {
+                $line = $reader.ReadLine()
+                if ([string]::IsNullOrEmpty($line)) { break }
+            }
+
+            $parts = $requestLine.Split(' ')
+            if ($parts.Length -lt 2 -or ($parts[0] -ne 'GET' -and $parts[0] -ne 'HEAD')) {
+                $body = [System.Text.Encoding]::UTF8.GetBytes('Method not allowed')
+                Write-Response $stream $body 'text/plain; charset=utf-8' 405 'Method Not Allowed'
+                continue
+            }
+
+            $rawPath = $parts[1].Split('?')[0]
+            $rawPath = [System.Uri]::UnescapeDataString($rawPath)
             if ([string]::IsNullOrWhiteSpace($rawPath) -or $rawPath -eq '/') {
                 $rawPath = '/index.html'
             }
@@ -69,7 +106,8 @@ try {
             $candidate = [System.IO.Path]::GetFullPath((Join-Path $Root $relative))
 
             if (-not $candidate.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
-                Send-Bytes $context ([Text.Encoding]::UTF8.GetBytes('Forbidden')) 'text/plain; charset=utf-8' 403
+                $body = [System.Text.Encoding]::UTF8.GetBytes('Forbidden')
+                Write-Response $stream $body 'text/plain; charset=utf-8' 403 'Forbidden'
                 continue
             }
 
@@ -83,15 +121,20 @@ try {
 
             $extension = [System.IO.Path]::GetExtension($candidate).ToLowerInvariant()
             $contentType = if ($mime.ContainsKey($extension)) { $mime[$extension] } else { 'application/octet-stream' }
-            $bytes = [System.IO.File]::ReadAllBytes($candidate)
-            Send-Bytes $context $bytes $contentType 200
+            $body = if ($parts[0] -eq 'HEAD') { [byte[]]::new(0) } else { [System.IO.File]::ReadAllBytes($candidate) }
+            Write-Response $stream $body $contentType 200 'OK'
         } catch {
-            $message = [Text.Encoding]::UTF8.GetBytes("Local server error: $($_.Exception.Message)")
-            try { Send-Bytes $context $message 'text/plain; charset=utf-8' 500 } catch {}
+            try {
+                $body = [System.Text.Encoding]::UTF8.GetBytes("Local server error: $($_.Exception.Message)")
+                Write-Response $stream $body 'text/plain; charset=utf-8' 500 'Internal Server Error'
+            } catch {}
+        } finally {
+            if ($reader) { $reader.Dispose() }
+            if ($stream) { $stream.Dispose() }
+            $client.Close()
         }
     }
 } finally {
-    if ($listener.IsListening) { $listener.Stop() }
-    $listener.Close()
+    $listener.Stop()
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
 }
