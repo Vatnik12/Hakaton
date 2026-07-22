@@ -1,50 +1,48 @@
 @echo off
 setlocal EnableExtensions
 
-title Gnezdo Local Development
+title Gnezdo - Update and Start
 color 0A
 
-set "PROJECT_DIR=%USERPROFILE%\Downloads\Hakaton-main\Hakaton-main"
-set "SCRIPTS_DIR=%PROJECT_DIR%\scripts"
-set "START_PS1=%SCRIPTS_DIR%\start-gnezdo.ps1"
-set "SERVER_PS1=%SCRIPTS_DIR%\serve-static.ps1"
-set "START_URL=https://raw.githubusercontent.com/Vatnik12/Hakaton/main/scripts/start-gnezdo.ps1"
-set "SERVER_URL=https://raw.githubusercontent.com/Vatnik12/Hakaton/main/scripts/serve-static.ps1"
+rem Use the folder containing this BAT when it is inside the project.
+for %%I in ("%~dp0.") do set "PROJECT_DIR=%%~fI"
 
-if not exist "%SCRIPTS_DIR%" mkdir "%SCRIPTS_DIR%"
+rem If somebody copied only the BAT to another place, keep the real project
+rem in a predictable per-user folder instead of mirroring files to Desktop.
+if not exist "%PROJECT_DIR%\index.html" if not exist "%PROJECT_DIR%\.git" set "PROJECT_DIR=%LOCALAPPDATA%\Gnezdo"
+
+set "BOOTSTRAP_URL=https://raw.githubusercontent.com/Vatnik12/Hakaton/main/scripts/start-gnezdo.ps1"
+set "BOOTSTRAP_PS1=%TEMP%\gnezdo-start-latest.ps1"
+set "CACHED_PS1=%PROJECT_DIR%\scripts\start-gnezdo.ps1"
 
 echo.
 echo ============================================================
-echo              GNEZDO WINDOWS BOOTSTRAP
+echo                 GNEZDO - ONE CLICK START
 echo ============================================================
 echo Project folder: %PROJECT_DIR%
 echo.
-echo [BOOT] Refreshing launcher scripts from GitHub...
+echo [1/2] Downloading the latest launcher from GitHub...
 
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; try { Invoke-WebRequest -UseBasicParsing '%START_URL%' -OutFile '%START_PS1%' -TimeoutSec 45; Invoke-WebRequest -UseBasicParsing '%SERVER_URL%' -OutFile '%SERVER_PS1%' -TimeoutSec 45; Write-Host '[BOOT] Launcher scripts updated.' -ForegroundColor Green; exit 0 } catch { Write-Host ('[BOOT] Download failed: ' + $_.Exception.Message) -ForegroundColor Yellow; exit 1 }"
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing '%BOOTSTRAP_URL%' -OutFile '%BOOTSTRAP_PS1%' -TimeoutSec 45"
 
 if errorlevel 1 (
-    echo [BOOT] GitHub is unavailable. Trying cached scripts...
+    echo [WARN] GitHub is temporarily unavailable. Using the cached launcher.
+    if not exist "%CACHED_PS1%" goto fail
+    set "BOOTSTRAP_PS1=%CACHED_PS1%"
+) else (
+    echo [OK] Latest launcher downloaded.
 )
 
-if not exist "%START_PS1%" goto fail
-if not exist "%SERVER_PS1%" goto fail
+echo [2/2] Opening the updater and starting Gnezdo...
 
-echo [BOOT] Starting main launcher...
-echo.
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%START_PS1%" -PreferredPath "%PROJECT_DIR%" -Port 8080
-set "EXIT_CODE=%ERRORLEVEL%"
-
-echo.
-echo ============================================================
-echo Launcher finished with code %EXIT_CODE%.
-echo ============================================================
-pause
-exit /b %EXIT_CODE%
+rem Start the real work from a separate process. The repository updater may
+rem replace this BAT while it is running, so the bootstrap process exits now.
+start "Gnezdo - Update and Start" powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -NoExit -File "%BOOTSTRAP_PS1%" -PreferredPath "%PROJECT_DIR%" -Port 8080
+exit /b 0
 
 :fail
 echo.
-echo ERROR: launcher scripts are missing.
+echo ERROR: The latest launcher could not be downloaded and no cached copy exists.
 echo Check the internet connection and run START_GNEZDO.bat again.
 pause
 exit /b 1
