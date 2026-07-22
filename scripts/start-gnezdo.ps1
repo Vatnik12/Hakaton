@@ -30,7 +30,7 @@ function Invoke-Git {
     $code = $LASTEXITCODE
 
     if ($code -ne 0 -and -not $AllowFailure) {
-        throw "Git завершился с кодом $code: git $($Arguments -join ' ')"
+        throw "Git failed with code ${code}: git $($Arguments -join ' ')"
     }
 
     return $code
@@ -49,8 +49,8 @@ function Sync-WithGit {
     }
 
     if (-not (Test-Path (Join-Path $Path '.git'))) {
-        Write-Info 'Папка пока не является Git-репозиторием.'
-        Write-Info 'Подключаю её к GitHub без создания второй копии...'
+        Write-Info 'Folder is not a Git repository yet.'
+        Write-Info 'Connecting this exact folder to GitHub...'
 
         Invoke-Git @('-C', $Path, 'init') | Out-Null
         Invoke-Git @('-C', $Path, 'remote', 'remove', 'origin') -AllowFailure | Out-Null
@@ -60,32 +60,32 @@ function Sync-WithGit {
         Invoke-Git @('-C', $Path, 'branch', '-M', 'main')
         Invoke-Git @('-C', $Path, 'clean', '-fd', '-e', '.env')
 
-        Write-Info 'Папка подключена к GitHub и полностью обновлена.'
+        Write-Info 'Folder is now connected to GitHub and fully updated.'
         return
     }
 
-    Write-Info 'Git-репозиторий найден. Проверяю origin/main...'
+    Write-Info 'Git repository found. Checking origin/main...'
     Invoke-Git @('-C', $Path, 'remote', 'set-url', 'origin', $repoUrl)
     Invoke-Git @('-C', $Path, 'fetch', '--prune', '--progress', 'origin', 'main')
 
     $localSha = (& git -C $Path rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Не удалось определить локальный commit.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read local commit.' }
 
     $remoteSha = (& git -C $Path rev-parse origin/main).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Не удалось определить origin/main.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read origin/main commit.' }
 
-    Write-Info "Локальная версия: $($localSha.Substring(0, 8))"
-    Write-Info "Версия GitHub:   $($remoteSha.Substring(0, 8))"
+    Write-Info "Local version:  $($localSha.Substring(0, 8))"
+    Write-Info "GitHub version: $($remoteSha.Substring(0, 8))"
 
     if ($localSha -eq $remoteSha) {
-        Write-Host '      Обновлений нет. Проект уже актуален.' -ForegroundColor Green
+        Write-Host '      No updates found. Project is current.' -ForegroundColor Green
         return
     }
 
-    Write-Host '      Найдена новая версия. Обновляю файлы проекта...' -ForegroundColor Yellow
+    Write-Host '      Update found. Replacing project files...' -ForegroundColor Yellow
     Invoke-Git @('-C', $Path, 'reset', '--hard', 'origin/main')
     Invoke-Git @('-C', $Path, 'clean', '-fd', '-e', '.env')
-    Write-Host '      Обновление успешно установлено.' -ForegroundColor Green
+    Write-Host '      Update installed successfully.' -ForegroundColor Green
 }
 
 function Sync-WithZip {
@@ -97,37 +97,37 @@ function Sync-WithZip {
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
 
-    Write-Info 'Git не найден. Скачиваю свежий ZIP с GitHub...'
+    Write-Info 'Git was not found. Downloading the latest ZIP...'
 
     if (Test-CommandExists 'curl.exe') {
         & curl.exe -L --fail --retry 2 --connect-timeout 15 --progress-bar $zipUrl -o $zipPath
         if ($LASTEXITCODE -ne 0) {
-            throw "curl.exe завершился с кодом $LASTEXITCODE"
+            throw "curl.exe failed with code $LASTEXITCODE"
         }
     } else {
         Invoke-WebRequest -UseBasicParsing -Uri $zipUrl -OutFile $zipPath -TimeoutSec 120
     }
 
-    Write-Info 'Распаковываю обновление...'
+    Write-Info 'Extracting update...'
     Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
 
     $source = Join-Path $extractPath 'Hakaton-main'
     if (-not (Test-Path (Join-Path $source 'index.html'))) {
-        throw 'В скачанном архиве не найден index.html.'
+        throw 'Downloaded archive does not contain index.html.'
     }
 
     New-Item -ItemType Directory -Force -Path $Path | Out-Null
 
-    Write-Info 'Синхронизирую файлы с постоянной папкой проекта...'
+    Write-Info 'Synchronizing files into the permanent project folder...'
     & robocopy.exe $source $Path /MIR /XD '.git' /XF '.env' /R:2 /W:1 /NFL /NDL /NJH /NJS /NP
     $robocopyCode = $LASTEXITCODE
     if ($robocopyCode -ge 8) {
-        throw "Robocopy завершился с кодом $robocopyCode"
+        throw "Robocopy failed with code $robocopyCode"
     }
 
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host '      Последняя ZIP-версия установлена.' -ForegroundColor Green
+    Write-Host '      Latest ZIP version installed.' -ForegroundColor Green
 }
 
 function Stop-PreviousServer {
@@ -136,7 +136,7 @@ function Stop-PreviousServer {
     if (Test-Path $pidFile) {
         $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($oldPid -match '^\d+$') {
-            Write-Info "Останавливаю предыдущий сервер PID $oldPid..."
+            Write-Info "Stopping previous server PID $oldPid..."
             Stop-Process -Id ([int]$oldPid) -Force -ErrorAction SilentlyContinue
         }
         Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
@@ -145,7 +145,7 @@ function Stop-PreviousServer {
     $listeners = Get-NetTCPConnection -LocalPort $ServerPort -State Listen -ErrorAction SilentlyContinue
     foreach ($listener in $listeners) {
         if ($listener.OwningProcess -and $listener.OwningProcess -ne $PID) {
-            Write-Info "Освобождаю порт $ServerPort, PID $($listener.OwningProcess)..."
+            Write-Info "Freeing port $ServerPort from PID $($listener.OwningProcess)..."
             Stop-Process -Id $listener.OwningProcess -Force -ErrorAction SilentlyContinue
         }
     }
@@ -156,27 +156,27 @@ function Create-DesktopShortcut {
 
     try {
         $desktop = [Environment]::GetFolderPath('Desktop')
-        $shortcutPath = Join-Path $desktop 'Гнездо - запуск.lnk'
+        $shortcutPath = Join-Path $desktop 'Gnezdo - Launch.lnk'
         $batPath = Join-Path $Path 'START_GNEZDO.bat'
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = $batPath
         $shortcut.WorkingDirectory = $Path
-        $shortcut.Description = 'Обновить проект с GitHub и запустить Гнездо локально'
+        $shortcut.Description = 'Update Gnezdo from GitHub and run it locally'
         $shortcut.Save()
-        Write-Info 'Ярлык «Гнездо - запуск» создан на рабочем столе.'
+        Write-Info 'Desktop shortcut created: Gnezdo - Launch'
     } catch {
-        Write-Info "Не удалось создать ярлык: $($_.Exception.Message)"
+        Write-Info "Could not create desktop shortcut: $($_.Exception.Message)"
     }
 }
 
 Clear-Host
 Write-Host '============================================================' -ForegroundColor DarkGreen
-Write-Host '             ГНЕЗДО - ЛОКАЛЬНАЯ РАЗРАБОТКА' -ForegroundColor Green
+Write-Host '             GNEZDO LOCAL DEVELOPMENT' -ForegroundColor Green
 Write-Host '============================================================' -ForegroundColor DarkGreen
-Write-Host 'Консоль останется открытой и покажет весь прогресс.' -ForegroundColor Gray
+Write-Host 'This console will stay open and show all progress.' -ForegroundColor Gray
 
-Write-Step 1 'Ищу постоянную папку проекта'
+Write-Step 1 'Locating the permanent project folder'
 
 if ((Test-Path (Join-Path $PreferredPath 'index.html')) -or (Test-Path $PreferredPath)) {
     $workDir = $PreferredPath
@@ -186,10 +186,10 @@ if ((Test-Path (Join-Path $PreferredPath 'index.html')) -or (Test-Path $Preferre
     $workDir = $PreferredPath
 }
 
-Write-Info "Постоянная папка: $workDir"
+Write-Info "Permanent folder: $workDir"
 New-Item -ItemType Directory -Force -Path $workDir | Out-Null
 
-Write-Step 2 'Проверяю обновления в GitHub'
+Write-Step 2 'Checking GitHub for updates'
 
 try {
     if (Test-CommandExists 'git.exe') {
@@ -198,42 +198,42 @@ try {
         Sync-WithZip -Path $workDir
     }
 } catch {
-    Write-Host "      Обновление не удалось: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "      Update failed: $($_.Exception.Message)" -ForegroundColor Yellow
 
     if (Test-Path (Join-Path $workDir 'index.html')) {
-        Write-Host '      Интернет недоступен. Запускаю последнюю сохранённую версию.' -ForegroundColor Yellow
+        Write-Host '      GitHub is unavailable. Starting the last saved version.' -ForegroundColor Yellow
     } else {
         throw
     }
 }
 
-Write-Step 3 'Проверяю файлы проекта'
+Write-Step 3 'Checking project files'
 $indexPath = Join-Path $workDir 'index.html'
 $serverPath = Join-Path $workDir 'scripts\serve-static.ps1'
 
 if (-not (Test-Path $indexPath)) {
-    throw "Не найден файл $indexPath"
+    throw "Missing file: $indexPath"
 }
 
 if (-not (Test-Path $serverPath)) {
-    throw "Не найден файл $serverPath"
+    throw "Missing file: $serverPath"
 }
 
-Write-Info 'Основные файлы найдены.'
-Write-Info "Сайт будет запущен из: $workDir"
+Write-Info 'Core project files are ready.'
+Write-Info "Serving files from: $workDir"
 
-Write-Step 4 'Останавливаю предыдущий локальный сервер'
+Write-Step 4 'Stopping the previous local server'
 Stop-PreviousServer -ServerPort $Port
-Write-Info "Порт $Port готов."
+Write-Info "Port $Port is ready."
 
-Write-Step 5 'Создаю ярлык для следующих запусков'
+Write-Step 5 'Creating a shortcut for future launches'
 Create-DesktopShortcut -Path $workDir
 
-Write-Step 6 'Запускаю локальный сайт'
-Write-Host "      Адрес: http://localhost:$Port" -ForegroundColor Green
-Write-Host '      Браузер откроется автоматически.' -ForegroundColor Green
-Write-Host '      Не закрывайте это окно, пока работаете с сайтом.' -ForegroundColor Yellow
-Write-Host '      Для остановки нажмите Ctrl+C.' -ForegroundColor Yellow
+Write-Step 6 'Starting the local website'
+Write-Host "      URL: http://localhost:$Port" -ForegroundColor Green
+Write-Host '      The browser will open automatically.' -ForegroundColor Green
+Write-Host '      Keep this window open while using the site.' -ForegroundColor Yellow
+Write-Host '      Press Ctrl+C to stop the server.' -ForegroundColor Yellow
 Write-Host ''
 
 & $serverPath -Root $workDir -Port $Port -PidFile $pidFile -OpenBrowser
