@@ -35,6 +35,16 @@ Browser
 
 Требуются Docker Desktop и Docker Compose.
 
+### Офлайн-запуск в один клик на Windows
+
+Скачайте архив репозитория в папку `C:\Users\main\Downloads`, затем дважды нажмите `START_GNEZDO.bat`. Подключение к GitHub и установленный Git не требуются. Лаунчер автоматически:
+
+1. найдёт самый свежий архив `Hakaton-main.zip`, `Hakaton-main (1).zip`, `Hakaton-main (2).zip` и так далее;
+2. проверит ZIP и дождётся окончания его загрузки;
+3. обновит проект в `C:\Users\main\Desktop\Hakaton`, сохранив локальный `.env`;
+4. не станет повторно копировать уже установленный архив;
+5. запустит полный Docker-стек или резервный frontend на `http://localhost:8080`.
+
 ```bash
 cp .env.example .env
 docker compose up -d --build
