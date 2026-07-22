@@ -78,13 +78,13 @@ function Write-RequestLog {
     Write-Host "[$time] $StatusCode $Method $Path" -ForegroundColor $color
 }
 
-$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+$listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $Port)
 
 try {
     $listener.Start()
 } catch {
     Write-Host ''
-    Write-Host "Не удалось занять порт $Port." -ForegroundColor Red
+    Write-Host "Could not bind to port $Port." -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor DarkRed
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
     exit 1
@@ -92,13 +92,13 @@ try {
 
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor DarkGreen
-Write-Host '                ГНЕЗДО ЗАПУЩЕНО ЛОКАЛЬНО' -ForegroundColor Green
+Write-Host '                GNEZDO IS RUNNING LOCALLY' -ForegroundColor Green
 Write-Host '============================================================' -ForegroundColor DarkGreen
-Write-Host "Адрес: http://localhost:$Port" -ForegroundColor Cyan
-Write-Host "Папка: $Root" -ForegroundColor Gray
+Write-Host "URL: http://localhost:$Port" -ForegroundColor Cyan
+Write-Host "Folder: $Root" -ForegroundColor Gray
 Write-Host "PID: $PID" -ForegroundColor DarkGray
-Write-Host 'Ниже отображаются запросы браузера.' -ForegroundColor Gray
-Write-Host 'Для остановки нажмите Ctrl+C или закройте окно.' -ForegroundColor Yellow
+Write-Host 'Browser requests will be shown below.' -ForegroundColor Gray
+Write-Host 'Press Ctrl+C or close this window to stop the server.' -ForegroundColor Yellow
 Write-Host ''
 
 if ($OpenBrowser) {
@@ -117,14 +117,7 @@ try {
 
         try {
             $stream = $client.GetStream()
-            $reader = [System.IO.StreamReader]::new(
-                $stream,
-                [System.Text.Encoding]::ASCII,
-                $false,
-                4096,
-                $true
-            )
-
+            $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
             $requestLine = $reader.ReadLine()
 
             if ([string]::IsNullOrWhiteSpace($requestLine)) {
@@ -163,9 +156,9 @@ try {
             }
 
             if ($rawPath.StartsWith('/api/')) {
-                $json = '{"status":"offline","message":"Локальная статическая версия запущена без Spring Boot"}'
+                $json = '{"status":"offline","message":"Static local mode is running without Spring Boot"}'
                 $fullBody = [System.Text.Encoding]::UTF8.GetBytes($json)
-                $body = if ($method -eq 'HEAD') { [byte[]]::new(0) } else { $fullBody }
+                $body = if ($method -eq 'HEAD') { New-Object byte[] 0 } else { $fullBody }
                 Write-Response $stream $body 'application/json; charset=utf-8' 503 'Service Unavailable' $fullBody.Length
                 $statusCode = 503
                 continue
@@ -192,7 +185,7 @@ try {
             $extension = [System.IO.Path]::GetExtension($candidate).ToLowerInvariant()
             $contentType = if ($mime.ContainsKey($extension)) { $mime[$extension] } else { 'application/octet-stream' }
             $fullBody = [System.IO.File]::ReadAllBytes($candidate)
-            $body = if ($method -eq 'HEAD') { [byte[]]::new(0) } else { $fullBody }
+            $body = if ($method -eq 'HEAD') { New-Object byte[] 0 } else { $fullBody }
 
             Write-Response $stream $body $contentType 200 'OK' $fullBody.Length
             $statusCode = 200
