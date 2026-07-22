@@ -45,7 +45,17 @@ public class ApiController {
     public List<Profile> profiles(@RequestParam(defaultValue="50") Integer limit){return jdbc.sql("select * from profiles order by id limit :limit").param("limit",Math.min(Math.max(limit,1),200)).query(this::mapProfile).list();}
 
     @PostMapping("/matches") @Transactional @ResponseStatus(HttpStatus.CREATED)
-    public RoomCreated createMatch(@Valid @RequestBody CreateMatchRequest r){Profile p=profileById(r.profileId());long room=createRoom("PERSON",null,p.id(),r.requesterName()+" + "+p.name());addMessage(room,p.name(),"Привет! У нас высокий процент совместимости. Давай познакомимся?");return new RoomCreated(room,"PERSON");}
+    public RoomCreated createMatch(@Valid @RequestBody CreateMatchRequest r){
+        Profile p=profileById(r.profileId());
+        long room=r.roomId()==null?createPersonRoom(p,r.requesterName()):r.roomId();
+        ensurePersonRoom(room,p.id());
+        jdbc.sql("insert into matches(profile_id,requester_name,room_id,status) values (:profileId,:requesterName,:roomId,'CONFIRMED') on conflict (profile_id,requester_name) do update set room_id=excluded.room_id,status='CONFIRMED',confirmed_at=now()")
+            .param("profileId",p.id()).param("requesterName",r.requesterName()).param("roomId",room).update();
+        return new RoomCreated(room,"PERSON");
+    }
+
+    @PostMapping("/chats/person") @Transactional @ResponseStatus(HttpStatus.CREATED)
+    public RoomCreated createPersonChat(@Valid @RequestBody CreatePersonChatRequest r){Profile p=profileById(r.profileId());return new RoomCreated(createPersonRoom(p,r.requesterName()),"PERSON");}
 
     @PostMapping("/chats/listing") @Transactional @ResponseStatus(HttpStatus.CREATED)
     public RoomCreated createListingChat(@Valid @RequestBody CreateListingChatRequest r){Listing l=listingById(r.listingId());long room=createRoom("LISTING",l.id(),null,l.address());addMessage(room,l.owner(),"Здравствуйте! Расскажите о себе и желаемой дате заселения.");return new RoomCreated(room,"LISTING");}
@@ -57,8 +67,10 @@ public class ApiController {
     public Message send(@PathVariable long roomId,@Valid @RequestBody SendMessageRequest r){ensureRoom(roomId);long id=addMessage(roomId,r.sender(),r.text());return jdbc.sql("select * from chat_messages where id=:id").param("id",id).query(this::mapMessage).single();}
 
     private long createRoom(String type,Long listingId,Long profileId,String title){return jdbc.sql("insert into chat_rooms(room_type,listing_id,profile_id,title) values (:type,:listingId,:profileId,:title) returning id").param("type",type).param("listingId",listingId,Types.BIGINT).param("profileId",profileId,Types.BIGINT).param("title",title).query(Long.class).single();}
+    private long createPersonRoom(Profile p,String requesterName){long room=createRoom("PERSON",null,p.id(),requesterName+" + "+p.name());addMessage(room,p.name(),"Привет! Вижу, у нас есть сильные совпадения. Что для тебя важнее всего в совместной аренде?");return room;}
     private long addMessage(long roomId,String sender,String text){return jdbc.sql("insert into chat_messages(room_id,sender,message_text) values (:roomId,:sender,:text) returning id").param("roomId",roomId).param("sender",sender).param("text",text).query(Long.class).single();}
     private void ensureRoom(long id){if(jdbc.sql("select count(*) from chat_rooms where id=:id").param("id",id).query(Long.class).single()==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Chat room not found");}
+    private void ensurePersonRoom(long roomId,long profileId){if(jdbc.sql("select count(*) from chat_rooms where id=:roomId and room_type='PERSON' and profile_id=:profileId").param("roomId",roomId).param("profileId",profileId).query(Long.class).single()==0)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Person chat does not match profile");}
     private Listing listingById(long id){return jdbc.sql("select * from listings where id=:id").param("id",id).query(this::mapListing).optional().orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Listing not found"));}
     private Profile profileById(long id){return jdbc.sql("select * from profiles where id=:id").param("id",id).query(this::mapProfile).optional().orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Profile not found"));}
     private long count(String table){return jdbc.sql("select count(*) from "+table).query(Long.class).single();}

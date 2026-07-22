@@ -91,12 +91,13 @@ GET  /api/v1/listings
 POST /api/v1/listings
 GET  /api/v1/profiles
 POST /api/v1/matches
+POST /api/v1/chats/person
 POST /api/v1/chats/listing
 GET  /api/v1/chats/{roomId}/messages
 POST /api/v1/chats/{roomId}/messages
 ```
 
-Форма арендодателя на сайте уже сохраняет новое объявление через Spring Boot API в PostgreSQL.
+Диалог с потенциальным соседом создаётся через Spring Boot API, а нажатие «Я готов — добавить в гнездо» сохраняет подтверждённый мэтч в PostgreSQL.
 
 
 ## Быстрый деплой на новый сервер `31.77.241.39`
