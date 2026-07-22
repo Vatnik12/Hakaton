@@ -33,8 +33,6 @@ Browser
 
 ## Локальный запуск всего проекта
 
-Требуются Docker Desktop и Docker Compose.
-
 ### Офлайн-запуск в один клик на Windows
 
 Скачайте архив репозитория в папку `C:\Users\main\Downloads`, затем дважды нажмите `START_GNEZDO.bat`. Подключение к GitHub и установленный Git не требуются. Лаунчер автоматически:
@@ -43,7 +41,13 @@ Browser
 2. проверит ZIP и дождётся окончания его загрузки;
 3. обновит проект в `C:\Users\main\Desktop\Hakaton`, сохранив локальный `.env`;
 4. не станет повторно копировать уже установленный архив;
-5. запустит полный Docker-стек или резервный frontend на `http://localhost:8080`.
+5. запустит сайт напрямую на Windows и откроет `http://localhost:8080`.
+
+Docker Desktop, Java, PostgreSQL и Git для локального MVP не требуются. Данные интерфейса сохраняются в браузере.
+
+### Полный стек с backend через Docker — необязательно
+
+Docker нужен только разработчикам, которым отдельно требуется Spring Boot API и PostgreSQL.
 
 ```bash
 cp .env.example .env
