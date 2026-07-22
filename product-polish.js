@@ -42,12 +42,15 @@
     </svg>`;
   }
 
+  function removeLegacyIntro() {
+    document.querySelector('#gnezdoIntro')?.remove();
+    document.body.classList.remove('gnezdo-intro-active', 'gnezdo-intro-reveal');
+  }
+
   function playIntro() {
     if (introPlayed || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     introPlayed = true;
-
-    document.querySelector('#gnezdoIntro')?.remove();
-    document.body.classList.remove('gnezdo-intro-active', 'gnezdo-intro-reveal');
+    removeLegacyIntro();
 
     const intro = document.createElement('div');
     intro.className = 'polished-intro';
@@ -91,6 +94,8 @@
   }
 
   function applyBrand() {
+    removeLegacyIntro();
+
     document.querySelectorAll('.logo').forEach(logo => {
       if (logo.dataset.gnezdoBrand === '1') return;
       logo.dataset.gnezdoBrand = '1';
