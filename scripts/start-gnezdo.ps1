@@ -23,11 +23,6 @@ function Write-Info {
     Write-Host "      $Text" -ForegroundColor Gray
 }
 
-function Test-CommandExists {
-    param([string]$Name)
-    return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
-}
-
 function Get-LatestHakatonArchive {
     param([string]$Path)
 
@@ -163,62 +158,6 @@ function Stop-PreviousServer {
     }
 }
 
-function Test-DockerReady {
-    if (-not (Test-CommandExists 'docker.exe')) {
-        return $false
-    }
-
-    # Windows PowerShell turns Docker's stderr into a terminating
-    # NativeCommandError when $ErrorActionPreference is Stop. Let cmd.exe
-    # absorb both streams so a stopped Docker Desktop is a normal false result.
-    & cmd.exe /d /c 'docker info >nul 2>&1'
-    return $LASTEXITCODE -eq 0
-}
-
-function Start-DockerStack {
-    param([string]$Path)
-
-    $composePath = Join-Path $Path 'docker-compose.yml'
-    if (-not (Test-Path -LiteralPath $composePath)) {
-        throw "Missing file: $composePath"
-    }
-
-    Write-Info 'Docker Desktop is running. Starting the complete application...'
-
-    Push-Location $Path
-    try {
-        & docker compose up -d --build --remove-orphans
-        if ($LASTEXITCODE -ne 0) {
-            throw "docker compose failed with code $LASTEXITCODE"
-        }
-    } finally {
-        Pop-Location
-    }
-
-    Write-Info 'Waiting for the website and API to become ready...'
-    $healthUrl = 'http://localhost/api/v1/health'
-    $ready = $false
-
-    for ($attempt = 1; $attempt -le 60; $attempt++) {
-        try {
-            $response = Invoke-WebRequest -UseBasicParsing -Uri $healthUrl -TimeoutSec 3
-            if ($response.StatusCode -eq 200) {
-                $ready = $true
-                break
-            }
-        } catch {}
-
-        Start-Sleep -Seconds 2
-    }
-
-    if (-not $ready) {
-        throw 'The containers started, but the API did not become ready within two minutes.'
-    }
-
-    Write-Host '      Complete Gnezdo stack is ready: http://localhost' -ForegroundColor Green
-    Start-Process "http://localhost/?dev=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
-}
-
 function Create-DesktopShortcut {
     param([string]$Path)
 
@@ -305,23 +244,8 @@ Write-Step 6 'Creating the desktop shortcut'
 Create-DesktopShortcut -Path $workDir
 
 Write-Step 7 'Starting the ready website'
-
-if (Test-DockerReady) {
-    try {
-        Start-DockerStack -Path $workDir
-        Write-Host ''
-        Write-Host 'The containers keep running in the background. You can close this window.' -ForegroundColor Gray
-        exit 0
-    } catch {
-        Write-Host "      Full Docker launch failed: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Host '      Falling back to the frontend-only local server.' -ForegroundColor Yellow
-    }
-} else {
-    Write-Host '      Docker Desktop was not found or is not running.' -ForegroundColor Yellow
-    Write-Host '      Starting the frontend-only fallback.' -ForegroundColor Yellow
-}
-
 Write-Host "      URL: http://localhost:$Port" -ForegroundColor Green
+Write-Host '      Starting directly on Windows. Docker is not used.' -ForegroundColor Green
 Write-Host '      Keep this window open. Press Ctrl+C to stop the server.' -ForegroundColor Yellow
 Write-Host ''
 
