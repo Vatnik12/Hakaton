@@ -119,7 +119,7 @@ function Sync-WithZip {
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
 
-    Write-Info 'Git was not found. Downloading the latest ZIP...'
+    Write-Info 'Downloading the latest ZIP from GitHub...'
 
     if (Test-CommandExists 'curl.exe') {
         & curl.exe -L --fail --retry 2 --connect-timeout 15 --progress-bar $zipUrl -o $zipPath
@@ -271,8 +271,15 @@ Write-Step 2 'Checking GitHub for updates'
 
 try {
     if (Test-CommandExists 'git.exe') {
-        Sync-WithGit -Path $workDir
+        try {
+            Sync-WithGit -Path $workDir
+        } catch {
+            Write-Host "      Git update failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host '      Switching automatically to the GitHub ZIP download...' -ForegroundColor Yellow
+            Sync-WithZip -Path $workDir
+        }
     } else {
+        Write-Info 'Git is not installed. Using the ZIP download.'
         Sync-WithZip -Path $workDir
     }
 } catch {
