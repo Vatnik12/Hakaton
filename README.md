@@ -1,79 +1,193 @@
-# Гнездо — совместная аренда жилья
+# Гнездо
 
-Рабочий hackathon MVP для поиска квартиры, совместимых соседей и формирования общего «гнезда» арендаторов.
+«Гнездо» — hackathon MVP для совместной аренды: пользователь подбирает квартиру, сравнивает анкеты будущих соседей, начинает диалог и собирает команду для совместного поиска.
+
+## Онлайн-демо
+
+После первого включения GitHub Pages сайт будет доступен по адресу:
+
+**https://vatnik12.github.io/Hakaton/**
+
+Для GitHub Pages используется статический demo-режим. Каталог, фильтры, избранное, анкеты, чаты и переключение темы работают в браузере; состояние сохраняется в `localStorage`.
+
+> GitHub Pages публикует только статические файлы и не запускает Java/Spring Boot. Полный backend запускается локально или на отдельном сервере. Инструкция для обоих вариантов находится ниже.
 
 ## Стек
 
-- Frontend: HTML, CSS, JavaScript, Nginx;
-- Backend: Java 21 (соответствует требованию Java 17+), Spring Boot 3.5;
-- Database: PostgreSQL 17;
-- Миграции: Flyway;
-- Доступ к данным: Spring JDBC `JdbcClient`;
-- Инфраструктура: Docker Compose, Nginx reverse proxy, GitHub Actions auto-deploy.
+- frontend: HTML, CSS, JavaScript;
+- backend: Java 21, Spring Boot 3.5;
+- доступ к данным: Spring Data JPA;
+- база данных: PostgreSQL 17;
+- миграции: Flyway;
+- локальная инфраструктура: Docker Compose и Nginx;
+- публикация frontend: GitHub Actions и GitHub Pages.
 
-## Что хранится на сервере
+## Как включить GitHub Pages — подробно
 
-- объявления о квартирах;
-- профили потенциальных соседей;
-- комнаты чатов;
-- сообщения;
-- созданные мэтчи и чаты по объявлениям.
+Репозиторий уже подготовлен: workflow находится в `.github/workflows/pages.yml`, а пути к CSS, JavaScript и изображениям сделаны относительными, поэтому проект корректно открывается из подпапки `/Hakaton/`.
 
-При первом запуске backend автоматически создаёт 128 объявлений и 50 профилей в PostgreSQL.
+### Шаг 1. Откройте настройки Pages
 
-## Архитектура
+1. Откройте репозиторий `Vatnik12/Hakaton` на GitHub.
+2. Нажмите вкладку **Settings**.
+3. В левом меню найдите раздел **Code and automation**.
+4. Откройте пункт **Pages**.
+
+Если вкладка **Settings** не видна, у аккаунта нет прав администратора этого репозитория. Включить Pages должен владелец или администратор.
+
+### Шаг 2. Выберите GitHub Actions как источник
+
+1. В блоке **Build and deployment** найдите поле **Source**.
+2. Выберите **GitHub Actions**.
+3. Дополнительную ветку или папку указывать не нужно: публикацией управляет готовый workflow.
+
+Не выбирайте вариант **Deploy from a branch**. Для этого проекта уже настроен более надёжный вариант через Actions, который собирает отдельный безопасный статический артефакт.
+
+### Шаг 3. Запустите первую публикацию
+
+Обычно workflow стартует автоматически после push в `main`. Чтобы запустить его вручную:
+
+1. Откройте вкладку **Actions** в репозитории.
+2. В списке слева выберите **Deploy frontend to GitHub Pages**.
+3. Нажмите **Run workflow**.
+4. В поле ветки оставьте `main`.
+5. Ещё раз нажмите зелёную кнопку **Run workflow**.
+
+### Шаг 4. Дождитесь завершения
+
+В workflow последовательно выполняются две задачи:
+
+1. **build** — копирует `index.html`, `product-v4.css`, `product-v4.js` и каталог `assets` в отдельный Pages-артефакт;
+2. **deploy** — публикует этот артефакт в окружение `github-pages`.
+
+Обе задачи должны стать зелёными. Первая публикация обычно занимает несколько минут, но GitHub предупреждает, что обновление сайта иногда может занять до 10 минут.
+
+После успешного выполнения:
+
+1. откройте завершившийся workflow;
+2. нажмите ссылку **View deployment** в блоке `deploy`;
+3. либо откройте **Settings → Pages** — там появится адрес опубликованного сайта.
+
+### Шаг 5. Проверьте сайт
+
+Откройте:
 
 ```text
-Browser
-  └── Nginx :80
-      ├── /              -> frontend
-      └── /api/*         -> Spring Boot :8080
-                              └── PostgreSQL 17 :5432
+https://vatnik12.github.io/Hakaton/
 ```
 
-## Локальный запуск всего проекта
+Проверьте:
 
-### Офлайн-запуск в один клик на Windows
+- загружаются логотип и фотографии;
+- работают вкладки «Квартиры», «Найти соседа», «Сообщения»;
+- открываются карточки и модальные окна;
+- переключение темы запускает сцену с солнцем, луной, домом и птицей;
+- после обновления страницы сохраняются избранное, чаты и состав гнезда.
 
-Скачайте архив репозитория в папку `C:\Users\main\Downloads`, затем дважды нажмите `START_GNEZDO.bat`. Подключение к GitHub и установленный Git не требуются. Лаунчер автоматически:
+### Как публиковать следующие изменения
 
-1. найдёт самый свежий архив `Hakaton-main.zip`, `Hakaton-main (1).zip`, `Hakaton-main (2).zip` и так далее;
-2. проверит ZIP и дождётся окончания его загрузки;
-3. обновит проект в `C:\Users\main\Desktop\Hakaton`, сохранив локальный `.env`;
-4. не станет повторно копировать уже установленный архив;
-5. запустит сайт напрямую на Windows и откроет `http://localhost:8080`.
-
-Docker Desktop, Java, PostgreSQL и Git для локального MVP не требуются. Данные интерфейса сохраняются в браузере.
-
-### Полный стек с backend через Docker — необязательно
-
-Docker нужен только разработчикам, которым отдельно требуется Spring Boot API и PostgreSQL.
+После включения Pages отдельные ручные действия больше не нужны. Любой push в `main`, который меняет frontend или Pages workflow, автоматически запускает публикацию:
 
 ```bash
-cp .env.example .env
-docker compose up -d --build
+git add index.html product-v4.css product-v4.js assets .github/workflows/pages.yml
+git commit -m "Update frontend"
+git push origin main
 ```
 
-Открыть:
+Следить за процессом можно во вкладке **Actions → Deploy frontend to GitHub Pages**.
+
+## Если GitHub Pages не заработал
+
+### Workflow не появился во вкладке Actions
+
+Проверьте, что файл `.github/workflows/pages.yml` существует в ветке `main`. Затем откройте **Actions** и разрешите запуск workflows, если GitHub показывает кнопку **I understand my workflows, go ahead and enable them**.
+
+### Ошибка `Get Pages site failed` или `Not Found`
+
+Откройте **Settings → Pages** и убедитесь, что в поле **Source** выбран **GitHub Actions**. После этого заново запустите workflow вручную.
+
+### Ошибка прав в задаче deploy
+
+Откройте:
+
+**Settings → Actions → General → Workflow permissions**
+
+Для стандартного Pages workflow достаточно разрешить GitHub Actions выполняться в репозитории. Не удаляйте из `pages.yml` права:
+
+```yaml
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+```
+
+Они нужны официальному действию публикации Pages.
+
+### Сайт открывается, но CSS или изображения не загружаются
+
+1. Убедитесь, что открываете адрес с `/Hakaton/` в конце.
+2. Выполните жёсткое обновление страницы: `Ctrl + F5` на Windows/Linux или `Cmd + Shift + R` на macOS.
+3. Проверьте, что последний workflow завершился после ваших изменений.
+4. Не заменяйте относительные пути `./product-v4.css`, `./product-v4.js` и `./assets/...` на пути, начинающиеся с `/`: абсолютный путь укажет на корень домена и сломает проектную страницу GitHub Pages.
+
+### На Pages не отвечает `/api/v1/...`
+
+Это ожидаемо: GitHub Pages не запускает Spring Boot и PostgreSQL. На домене `github.io` frontend автоматически работает в статическом demo-режиме и не обращается к отсутствующему API.
+
+Чтобы подключить опубликованный frontend к отдельно развёрнутому backend, до `product-v4.js` нужно определить публичный HTTPS-адрес API:
+
+```html
+<script>
+  window.GNEZDO_API_BASE = 'https://api.example.com/api/v1';
+</script>
+```
+
+Backend при этом должен разрешать CORS для адреса GitHub Pages. Не добавляйте токены, пароли базы или приватные ключи в frontend: весь опубликованный JavaScript доступен посетителям.
+
+## Быстрый локальный запуск frontend
+
+Самый простой вариант без Docker и Java:
+
+```bash
+python -m http.server 4173
+```
+
+Откройте `http://localhost:4173`.
+
+На Windows можно также дважды нажать `START_GNEZDO.bat`. Локальный demo-режим хранит состояние интерфейса в браузере.
+
+## Запуск полного стека через Docker
+
+Нужны Docker и Docker Compose.
+
+### Linux/macOS
+
+```bash
+export POSTGRES_PASSWORD='replace-with-a-long-local-password'
+docker compose up --build
+```
+
+### Windows PowerShell
+
+```powershell
+$env:POSTGRES_PASSWORD = 'replace-with-a-long-local-password'
+docker compose up --build
+```
+
+После запуска:
 
 - сайт: `http://localhost`;
-- API: `http://localhost/api/v1/health`.
+- health-check API: `http://localhost/api/v1/health`;
+- backend внутри Compose: Spring Boot на порту `8080`;
+- база внутри Compose: PostgreSQL на порту `5432`.
 
-Проверка данных:
-
-```bash
-curl http://localhost/api/v1/meta
-curl http://localhost/api/v1/listings?limit=5
-curl http://localhost/api/v1/profiles?limit=5
-```
-
-Остановка:
+Остановка контейнеров:
 
 ```bash
 docker compose down
 ```
 
-Удаление базы вместе с данными:
+Удаление контейнеров вместе с локальными данными PostgreSQL:
 
 ```bash
 docker compose down -v
@@ -81,22 +195,45 @@ docker compose down -v
 
 ## Запуск backend без Docker
 
-Нужны Java 17+ и Maven 3.9+, а также запущенный PostgreSQL 17.
+Нужны Java 17+, Maven 3.9+ и запущенный PostgreSQL.
+
+Задайте параметры подключения через переменные окружения:
+
+```text
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/gnezdo
+SPRING_DATASOURCE_USERNAME=gnezdo
+SPRING_DATASOURCE_PASSWORD=your-local-password
+```
+
+Затем запустите:
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-Переменные подключения:
+## Архитектура backend
+
+Backend разделён на отдельные слои и пакеты:
 
 ```text
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/gnezdo
-SPRING_DATASOURCE_USERNAME=gnezdo
-SPRING_DATASOURCE_PASSWORD=gnezdo
+ru.gnezdo.api
+├── controller   HTTP-контроллеры и валидация входных запросов
+├── service      бизнес-логика приложения
+├── repository   Spring Data JPA репозитории
+├── model        JPA-сущности и enum-типы
+├── dto          DTO запросов/ответов и mapper
+└── config       конфигурация и заполнение demo-данными
 ```
 
-## API MVP
+Поток обработки запроса:
+
+```text
+Controller → Service → Repository → PostgreSQL
+                    ↘ DTO mapper → HTTP response
+```
+
+Основные endpoint'ы:
 
 ```text
 GET  /api/v1/health
@@ -111,91 +248,13 @@ GET  /api/v1/chats/{roomId}/messages
 POST /api/v1/chats/{roomId}/messages
 ```
 
-Диалог с потенциальным соседом создаётся через Spring Boot API, а нажатие «Я готов — добавить в гнездо» сохраняет подтверждённый мэтч в PostgreSQL.
+## Безопасность публикации
 
+Pages workflow публикует только четыре части frontend:
 
-## Быстрый деплой на новый сервер `31.77.241.39`
+- `index.html`;
+- `product-v4.css`;
+- `product-v4.js`;
+- `assets/`.
 
-Ниже команды именно для Windows CMD. Первая команда настраивает удобный вход `ssh gnezdo` на вашем компьютере, вторая запускается уже на сервере и поднимает сайт.
-
-### 1. На своём компьютере в Windows CMD
-
-```bat
-if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh"
-if not exist "%USERPROFILE%\.ssh\gnezdo_admin" ssh-keygen -t ed25519 -N "" -C "gnezdo-admin" -f "%USERPROFILE%\.ssh\gnezdo_admin"
-(
-  echo Host gnezdo
-  echo   HostName 31.77.241.39
-  echo   User root
-  echo   IdentityFile %USERPROFILE%\.ssh\gnezdo_admin
-  echo   IdentitiesOnly yes
-) >> "%USERPROFILE%\.ssh\config"
-ssh root@31.77.241.39 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" < "%USERPROFILE%\.ssh\gnezdo_admin.pub"
-ssh gnezdo
-```
-
-Во время команды `ssh root@31.77.241.39 ...` Windows попросит пароль от сервера, если ключ ещё не добавлен. Если провайдер отключил вход по паролю, добавьте содержимое файла `%USERPROFILE%\.ssh\gnezdo_admin.pub` в `/root/.ssh/authorized_keys` через панель провайдера, затем выполните `ssh gnezdo`.
-
-### 2. На сервере после входа по `ssh gnezdo`
-
-```bash
-set -e
-apt-get update && apt-get install -y git ca-certificates curl
-rm -rf /tmp/gnezdo-bootstrap
-git clone https://github.com/Vatnik12/Hakaton.git /tmp/gnezdo-bootstrap
-bash /tmp/gnezdo-bootstrap/deploy/setup-server.sh
-```
-
-После завершения сайт будет доступен по адресу `http://31.77.241.39`, а проверка API — `http://31.77.241.39/api/v1/health`. Скрипт в конце выведет значения для GitHub Secrets:
-
-```text
-SERVER_HOST=31.77.241.39
-SERVER_USER=deploy
-SSH_PRIVATE_KEY=-----BEGIN OPENSSH PRIVATE KEY----- ...
-```
-
-Добавьте эти три секрета в GitHub: `Settings → Secrets and variables → Actions → New repository secret`. Это и есть deploy key для автодеплоя: workflow будет заходить на сервер пользователем `deploy` и запускать `/usr/local/bin/deploy-gnezdo`.
-
-## Мгновенный запуск на Ubuntu-сервере
-
-```bash
-sudo apt-get update && sudo apt-get install -y git ca-certificates curl && \
-rm -rf /tmp/gnezdo-bootstrap && \
-git clone https://github.com/Vatnik12/Hakaton.git /tmp/gnezdo-bootstrap && \
-cd /tmp/gnezdo-bootstrap && \
-sudo bash deploy/setup-server.sh
-```
-
-Скрипт:
-
-1. устанавливает Docker;
-2. создаёт безопасный пароль PostgreSQL в `/opt/svoi/.env`;
-3. запускает PostgreSQL 17, Spring Boot и Nginx;
-4. выводит ссылку на сайт и health endpoint;
-5. создаёт ключ для GitHub Actions.
-
-Ручное обновление:
-
-```bash
-sudo -u deploy /usr/local/bin/deploy-gnezdo
-```
-
-## Автодеплой
-
-В GitHub добавьте Secrets:
-
-```text
-SERVER_HOST
-SERVER_USER
-SSH_PRIVATE_KEY
-```
-
-После каждого push в `main` workflow обновляет код и выполняет:
-
-```bash
-docker compose up -d --build --remove-orphans
-```
-
-## Production-заметки
-
-Для полноценного production нужны авторизация, роли, WebSocket/STOMP для realtime-чатов, object storage для фотографий, rate limiting, резервные копии PostgreSQL и реальные интеграции верификации.
+Backend, Docker-конфигурация, миграции, `.env` и серверные настройки в Pages-артефакт не попадают. Секреты следует хранить только в переменных окружения или GitHub Actions Secrets; реальные пароли и приватные ключи нельзя коммитить в репозиторий.

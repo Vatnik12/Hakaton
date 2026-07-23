@@ -15,7 +15,7 @@ public final class DtoMapper {
 
     public static ProfileDto toDto(Profile item) {
         return new ProfileDto(item.getId(), item.getName(), item.getAge(), item.getRole(), item.getDistrict(),
-            item.getBudget(), item.getDistance(), item.getAvatar(), item.isVerified(), item.getBio(),
+            item.getBudget(), item.getAvatar(), item.isVerified(), item.getBio(),
             item.getTraits(), item.getRedFlags());
     }
 
