@@ -1,50 +1,41 @@
 @echo off
 setlocal EnableExtensions
 
-title Gnezdo Local Development
+title Gnezdo - Offline Update and Start
 color 0A
 
-set "PROJECT_DIR=%USERPROFILE%\Downloads\Hakaton-main\Hakaton-main"
-set "SCRIPTS_DIR=%PROJECT_DIR%\scripts"
-set "START_PS1=%SCRIPTS_DIR%\start-gnezdo.ps1"
-set "SERVER_PS1=%SCRIPTS_DIR%\serve-static.ps1"
-set "START_URL=https://raw.githubusercontent.com/Vatnik12/Hakaton/main/scripts/start-gnezdo.ps1"
-set "SERVER_URL=https://raw.githubusercontent.com/Vatnik12/Hakaton/main/scripts/serve-static.ps1"
-
-if not exist "%SCRIPTS_DIR%" mkdir "%SCRIPTS_DIR%"
+set "PROJECT_DIR=%USERPROFILE%\Desktop\Hakaton"
+set "DOWNLOADS_DIR=%USERPROFILE%\Downloads"
+set "BUNDLED_PS1=%~dp0scripts\start-gnezdo.ps1"
+set "INSTALLED_PS1=%PROJECT_DIR%\scripts\start-gnezdo.ps1"
+set "TEMP_PS1=%TEMP%\gnezdo-offline-%RANDOM%-%RANDOM%.ps1"
 
 echo.
 echo ============================================================
-echo              GNEZDO WINDOWS BOOTSTRAP
+echo              GNEZDO - OFFLINE UPDATE AND START
 echo ============================================================
-echo Project folder: %PROJECT_DIR%
+echo Archives: %DOWNLOADS_DIR%\Hakaton-main*.zip
+echo Project:  %PROJECT_DIR%
 echo.
-echo [BOOT] Refreshing launcher scripts from GitHub...
 
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; try { Invoke-WebRequest -UseBasicParsing '%START_URL%' -OutFile '%START_PS1%' -TimeoutSec 45; Invoke-WebRequest -UseBasicParsing '%SERVER_URL%' -OutFile '%SERVER_PS1%' -TimeoutSec 45; Write-Host '[BOOT] Launcher scripts updated.' -ForegroundColor Green; exit 0 } catch { Write-Host ('[BOOT] Download failed: ' + $_.Exception.Message) -ForegroundColor Yellow; exit 1 }"
-
-if errorlevel 1 (
-    echo [BOOT] GitHub is unavailable. Trying cached scripts...
+if exist "%BUNDLED_PS1%" (
+    set "SOURCE_PS1=%BUNDLED_PS1%"
+) else if exist "%INSTALLED_PS1%" (
+    set "SOURCE_PS1=%INSTALLED_PS1%"
+) else (
+    goto fail
 )
 
-if not exist "%START_PS1%" goto fail
-if not exist "%SERVER_PS1%" goto fail
+copy /Y "%SOURCE_PS1%" "%TEMP_PS1%" >nul
+if errorlevel 1 goto fail
 
-echo [BOOT] Starting main launcher...
-echo.
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%START_PS1%" -PreferredPath "%PROJECT_DIR%" -Port 8080
-set "EXIT_CODE=%ERRORLEVEL%"
-
-echo.
-echo ============================================================
-echo Launcher finished with code %EXIT_CODE%.
-echo ============================================================
-pause
-exit /b %EXIT_CODE%
+echo Starting the offline archive updater...
+start "Gnezdo - Offline Update and Start" powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -NoExit -File "%TEMP_PS1%" -ProjectPath "%PROJECT_DIR%" -DownloadsPath "%DOWNLOADS_DIR%" -Port 8080
+exit /b 0
 
 :fail
 echo.
-echo ERROR: launcher scripts are missing.
-echo Check the internet connection and run START_GNEZDO.bat again.
+echo ERROR: scripts\start-gnezdo.ps1 was not found.
+echo Put this BAT inside the Hakaton project and run it again.
 pause
 exit /b 1

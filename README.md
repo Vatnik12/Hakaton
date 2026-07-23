@@ -33,7 +33,21 @@ Browser
 
 ## Локальный запуск всего проекта
 
-Требуются Docker Desktop и Docker Compose.
+### Офлайн-запуск в один клик на Windows
+
+Скачайте архив репозитория в папку `C:\Users\main\Downloads`, затем дважды нажмите `START_GNEZDO.bat`. Подключение к GitHub и установленный Git не требуются. Лаунчер автоматически:
+
+1. найдёт самый свежий архив `Hakaton-main.zip`, `Hakaton-main (1).zip`, `Hakaton-main (2).zip` и так далее;
+2. проверит ZIP и дождётся окончания его загрузки;
+3. обновит проект в `C:\Users\main\Desktop\Hakaton`, сохранив локальный `.env`;
+4. не станет повторно копировать уже установленный архив;
+5. запустит сайт напрямую на Windows и откроет `http://localhost:8080`.
+
+Docker Desktop, Java, PostgreSQL и Git для локального MVP не требуются. Данные интерфейса сохраняются в браузере.
+
+### Полный стек с backend через Docker — необязательно
+
+Docker нужен только разработчикам, которым отдельно требуется Spring Boot API и PostgreSQL.
 
 ```bash
 cp .env.example .env
@@ -91,12 +105,13 @@ GET  /api/v1/listings
 POST /api/v1/listings
 GET  /api/v1/profiles
 POST /api/v1/matches
+POST /api/v1/chats/person
 POST /api/v1/chats/listing
 GET  /api/v1/chats/{roomId}/messages
 POST /api/v1/chats/{roomId}/messages
 ```
 
-Форма арендодателя на сайте уже сохраняет новое объявление через Spring Boot API в PostgreSQL.
+Диалог с потенциальным соседом создаётся через Spring Boot API, а нажатие «Я готов — добавить в гнездо» сохраняет подтверждённый мэтч в PostgreSQL.
 
 
 ## Быстрый деплой на новый сервер `31.77.241.39`
